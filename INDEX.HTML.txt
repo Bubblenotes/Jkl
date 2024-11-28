@@ -1,0 +1,75 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Platform Data Sharing</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Multi-Platform Data Sharing</h1>
+    </header>
+    <main>
+      <form id="dataForm" enctype="multipart/form-data">
+        <label for="message">Message (optional):</label>
+        <textarea id="message" name="message" placeholder="Add a message (optional)"></textarea>
+
+        <label for="file">Upload File:</label>
+        <input type="file" id="file" name="file">
+
+        <label for="recipients">Recipients (comma-separated):</label>
+        <input id="recipients" name="recipients" placeholder="e.g., +123456789, username1" required>
+
+        <div class="platforms">
+          <p>Select Platforms:</p>
+          <label>
+            <input type="checkbox" value="whatsapp" name="platforms">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp" class="icon">
+          </label>
+          <label>
+            <input type="checkbox" value="telegram" name="platforms">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" alt="Telegram" class="icon">
+          </label>
+          <label>
+            <input type="checkbox" value="twitter" name="platforms">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/6/60/Twitter_Logo_as_of_2021.svg" alt="Twitter" class="icon">
+          </label>
+        </div>
+
+        <button type="submit">Send</button>
+      </form>
+      <div id="response"></div>
+    </main>
+  </div>
+
+  <script>
+    const form = document.getElementById('dataForm');
+    const responseDiv = document.getElementById('response');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+
+      try {
+        const response = await fetch('http://localhost:4000/api/send-data', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          responseDiv.innerHTML = '<p>Data sent successfully!</p>';
+        } else {
+          responseDiv.innerHTML = `<p>Error: ${result.error}</p>`;
+        }
+      } catch (error) {
+        responseDiv.innerHTML = `<p>Failed to send data: ${error.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>
+

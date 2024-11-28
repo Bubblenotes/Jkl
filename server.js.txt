@@ -1,0 +1,110 @@
+﻿const express = require('express');
+const multer = require('multer');
+const sharp = require('sharp');
+const fs = require('fs');
+const axios = require('axios');
+const path = require('path');
+
+const app = express();
+const upload = multer({ dest: 'uploads/' });
+
+// Compression threshold: 5MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+app.post('/api/send-data', upload.single('file'), async (req, res) => {
+  const { message, recipients, platforms } = req.body;
+  const file = req.file;
+  let compressedFilePath = null;
+
+  try {
+    // Handle file compression if necessary
+    if (file && file.size > MAX_FILE_SIZE) {
+      const outputPath = `uploads/compressed_${file.originalname}`;
+      await sharp(file.path).resize({ width: 1080 }).toFile(outputPath);
+      compressedFilePath = outputPath;
+    }
+
+    const results = [];
+
+    // WhatsApp Integration
+    if (platforms.includes('whatsapp')) {
+      for (const recipient of recipients.split(',')) {
+        const formData = new FormData();
+        if (message) formData.append('message', message);
+        if (file) {
+          const filePath = compressedFilePath || file.path;
+          formData.append('file', fs.createReadStream(filePath));
+        }
+
+        const response = await axios.post(
+          'https://api.whatsapp.com/v1/messages',
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer YOUR_WHATSAPP_TOKEN`,
+              ...formData.getHeaders(),
+            },
+          }
+        );
+        results.push({ platform: 'WhatsApp', recipient, status: response.data });
+      }
+    }
+
+    // Telegram Integration
+    if (platforms.includes('telegram')) {
+      for (const recipient of recipients.split(',')) {
+        const telegramData = {
+          chat_id: recipient.trim(),
+          text: message || 'No message provided.',
+        };
+
+        if (file) {
+          const filePath = compressedFilePath || file.path;
+          telegramData.document = fs.createReadStream(filePath);
+        }
+
+        const response = await axios.post(
+          `https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/sendDocument`,
+          telegramData
+        );
+        results.push({ platform: 'Telegram', recipient, status: response.data });
+      }
+    }
+
+    // Twitter Integration
+    if (platforms.includes('twitter')) {
+      for (const recipient of recipients.split(',')) {
+        const twitterData = {
+          event: {
+            type: 'message_create',
+            message_create: {
+              target: { recipient_id: recipient.trim() },
+              message_data: { text: message || 'No message provided.' },
+            },
+          },
+        };
+
+        const response = await axios.post(
+          'https://api.twitter.com/2/direct_messages/events/new',
+          twitterData,
+          { headers: { Authorization: `Bearer YOUR_TWITTER_TOKEN` } }
+        );
+        results.push({ platform: 'Twitter', recipient, status: response.data });
+      }
+    }
+
+    // Cleanup compressed files
+    if (compressedFilePath) fs.unlinkSync(compressedFilePath);
+
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    // Cleanup uploaded files
+    if (file) fs.unlinkSync(file.path);
+  }
+});
+
+app.listen(4000, () => console.log('Server running on http://localhost:4000'));
+
